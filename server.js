@@ -1,78 +1,38 @@
 const express = require("express");
 const http = require("http");
-const { Server } = require("socket.io");
 const mongoose = require("mongoose");
 const cors = require("cors");
-const multer = require("multer");
-const path = require("path");
+const { Server } = require("socket.io");
 const admin = require("firebase-admin");
+const multer = require("multer");
 
-/* ================= FIREBASE (через ENV) ================= */
+const serviceAccount = require("./serviceAccountKey.json");
 
-if (!process.env.FIREBASE_KEY) {
-  throw new Error("FIREBASE_KEY is missing in environment variables");
-}
-
-const serviceAccount = JSON.parse(process.env.FIREBASE_KEY);
+/* ================= Firebase ================= */
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
 
-/* ================= CONFIG ================= */
-
-const PORT = process.env.PORT || 3000;
-
-if (!process.env.MONGO_URL) {
-  throw new Error("MONGO_URL is missing in environment variables");
-}
-
-mongoose
-  .connect(process.env.MONGO_URL)
-  .then(() => console.log("MongoDB connected"))
-  .catch((err) => console.log("MongoDB error:", err.message));
-
-/* ================= APP ================= */
+/* ================= App ================= */
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: "*" } });
+
 app.use(cors());
 app.use(express.json());
 app.use("/uploads", express.static("uploads"));
 
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" },
-});
+/* ================= MongoDB ================= */
 
-/* ================= STORAGE (файлы) ================= */
-
-const storage = multer.diskStorage({
-  destination: "uploads/",
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
-  },
-});
-
-const upload = multer({ storage });
-
-/* ================= SCHEMAS ================= */
+mongoose.connect(process.env.MONGO_URL);
 
 const User = mongoose.model(
   "User",
   new mongoose.Schema({
     username: String,
-    password: String,
-    avatar: String,
     fcmToken: String,
-  })
-);
-
-const Chat = mongoose.model(
-  "Chat",
-  new mongoose.Schema({
-    users: [String],
-    isGroup: Boolean,
-    name: String,
   })
 );
 
@@ -83,107 +43,114 @@ const Message = mongoose.model(
     user: String,
     text: String,
     file: String,
+    readBy: [String],
     createdAt: { type: Date, default: Date.now },
   })
 );
 
-/* ================= AUTH ================= */
+const Chat = mongoose.model(
+  "Chat",
+  new mongoose.Schema({
+    name: String,
+    users: [String],
+  })
+);
 
-app.post("/register", async (req, res) => {
-  const { username, password } = req.body;
+/* ================= Upload ================= */
 
-  const exists = await User.findOne({ username });
-  if (exists) return res.status(400).json({ error: "User exists" });
-
-  const user = await User.create({ username, password });
-  res.json(user);
+const storage = multer.diskStorage({
+  destination: "uploads/",
+  filename: (_, file, cb) => cb(null, Date.now() + "_" + file.originalname),
 });
 
-app.post("/login", async (req, res) => {
-  const { username, password, fcmToken } = req.body;
+const upload = multer({ storage });
 
-  const user = await User.findOneAndUpdate(
-    { username, password },
-    { fcmToken },
-    { new: true }
+app.post("/upload", upload.single("file"), (req, res) => {
+  res.json({ file: "/uploads/" + req.file.filename });
+});
+
+/* ================= Save FCM token ================= */
+
+app.post("/save-token", async (req, res) => {
+  const { username, token } = req.body;
+
+  await User.findOneAndUpdate(
+    { username },
+    { fcmToken: token },
+    { upsert: true }
   );
 
-  if (!user) return res.status(400).json({ error: "Invalid login" });
-
-  res.json(user);
+  res.sendStatus(200);
 });
 
-/* ================= AVATAR ================= */
+/* ================= Unread count ================= */
 
-app.post("/avatar/:username", upload.single("avatar"), async (req, res) => {
-  const avatarPath = `/uploads/${req.file.filename}`;
-
-  await User.updateOne(
-    { username: req.params.username },
-    { avatar: avatarPath }
-  );
-
-  res.json({ avatar: avatarPath });
-});
-
-/* ================= FILE MESSAGE ================= */
-
-app.post("/upload/:chatId/:user", upload.single("file"), async (req, res) => {
-  const filePath = `/uploads/${req.file.filename}`;
-
-  const msg = await Message.create({
-    chatId: req.params.chatId,
-    user: req.params.user,
-    file: filePath,
+app.get("/unread/:username", async (req, res) => {
+  const count = await Message.countDocuments({
+    readBy: { $ne: req.params.username },
   });
 
-  io.to(msg.chatId).emit("new_message", msg);
-
-  res.json(msg);
+  res.json({ count });
 });
 
-/* ================= CHATS ================= */
+/* ================= Chats list ================= */
 
 app.get("/chats/:username", async (req, res) => {
   const chats = await Chat.find({ users: req.params.username });
-  res.json(chats);
+
+  const result = [];
+
+  for (const chat of chats) {
+    const last = await Message.findOne({ chatId: chat._id })
+      .sort({ createdAt: -1 });
+
+    result.push({
+      _id: chat._id,
+      name: chat.name,
+      lastMessage: last ? last.text : "",
+    });
+  }
+
+  res.json(result);
 });
 
-app.post("/group", async (req, res) => {
-  const { name, users } = req.body;
+/* ================= Test push ================= */
 
-  const chat = await Chat.create({
-    name,
-    users,
-    isGroup: true,
+app.get("/test-push", async (_, res) => {
+  const users = await User.find({ fcmToken: { $ne: null } });
+  const tokens = users.map((u) => u.fcmToken);
+
+  if (tokens.length === 0) return res.send("no tokens");
+
+  await admin.messaging().sendEachForMulticast({
+    tokens,
+    notification: {
+      title: "ТЕСТ",
+      body: "Push работает 🚀",
+    },
   });
 
-  res.json(chat);
+  res.send("ok");
 });
 
-/* ================= MESSAGES ================= */
-
-app.get("/messages/:chatId", async (req, res) => {
-  const msgs = await Message.find({ chatId: req.params.chatId }).sort("createdAt");
-  res.json(msgs);
-});
-
-/* ================= SOCKET ================= */
+/* ================= Socket.IO ================= */
 
 io.on("connection", (socket) => {
   console.log("User connected");
 
-  socket.on("join", (chatId) => {
+  socket.on("join_chat", (chatId) => {
     socket.join(chatId);
   });
 
   socket.on("send_message", async (msg) => {
-    const saved = await Message.create(msg);
+    const saved = await Message.create({
+      ...msg,
+      readBy: [msg.user],
+    });
 
     io.to(msg.chatId).emit("new_message", saved);
 
-    /* ===== PUSH УВЕДОМЛЕНИЯ ===== */
-
+    /* ===== Push ===== */
     try {
       const chat = await Chat.findById(msg.chatId);
       if (!chat) return;
@@ -198,16 +165,28 @@ io.on("connection", (socket) => {
             title: msg.user,
             body: msg.text || "📎 Файл",
           },
+          data: {
+            chatId: msg.chatId.toString(),
+          },
         });
       }
-    } catch (err) {
-      console.log("FCM error:", err.message);
+    } catch (e) {
+      console.log("Push error:", e.message);
     }
+  });
+
+  socket.on("read_messages", async ({ chatId, user }) => {
+    await Message.updateMany(
+      { chatId, readBy: { $ne: user } },
+      { $push: { readBy: user } }
+    );
   });
 });
 
-/* ================= START ================= */
+/* ================= Start ================= */
+
+const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
-  console.log("Server running on port " + PORT);
+  console.log("Server running on port", PORT);
 });
