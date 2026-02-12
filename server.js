@@ -5,6 +5,7 @@ const cors = require("cors");
 const { Server } = require("socket.io");
 const admin = require("firebase-admin");
 const multer = require("multer");
+const bcrypt = require("bcrypt");
 
 const serviceAccount = require("./serviceAccountKey.json");
 
@@ -31,7 +32,8 @@ mongoose.connect(process.env.MONGO_URL);
 const User = mongoose.model(
   "User",
   new mongoose.Schema({
-    username: String,
+    username: { type: String, unique: true },
+    password: String,
     fcmToken: String,
   })
 );
@@ -55,6 +57,34 @@ const Chat = mongoose.model(
     users: [String],
   })
 );
+
+/* ================= AUTH ================= */
+
+app.post("/register", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    const hash = await bcrypt.hash(password, 10);
+
+    await User.create({ username, password: hash });
+
+    res.json({ ok: true });
+  } catch {
+    res.status(400).json({ error: "USER_EXISTS" });
+  }
+});
+
+app.post("/login", async (req, res) => {
+  const { username, password } = req.body;
+
+  const user = await User.findOne({ username });
+  if (!user) return res.status(400).json({ error: "NO_USER" });
+
+  const ok = await bcrypt.compare(password, user.password);
+  if (!ok) return res.status(400).json({ error: "WRONG_PASS" });
+
+  res.json({ ok: true, username });
+});
 
 /* ================= Upload ================= */
 
