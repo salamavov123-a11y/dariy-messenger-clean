@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Вход</title>
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      font-family: Arial, sans-serif;
+      color: white;
+    }
+
+    .box {
+      background: rgba(0,0,0,0.6);
+      padding: 40px;
+      border-radius: 20px;
+      box-shadow: 0 0 30px #9d4edd;
+      text-align: center;
+      width: 300px;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      border: none;
+      border-radius: 10px;
+      outline: none;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      border: none;
+      border-radius: 10px;
+      background: #9d4edd;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    button:hover {
+      background: #7b2cbf;
+      box-shadow: 0 0 15px #c77dff;
+    }
+
+    a {
+      color: #c77dff;
+      display: block;
+      margin-top: 15px;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h2>Вход</h2>
+    <input id="username" placeholder="Логин">
+    <input id="password" type="password" placeholder="Пароль">
+    <button onclick="login()">Войти</button>
+    <a href="register.html">Нет аккаунта? Регистрация</a>
+  </div>
+
+  <script>
+    async function login() {
+      const username = document.getElementById("username").value;
+      const password = document.getElementById("password").value;
+
+      const res = await fetch("/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        localStorage.setItem("username", username);
+        location.href = "index.html";
+      } else {
+        alert("Неверный логин или пароль");
+      }
+    }
+  </script>
+</body>
+</html>

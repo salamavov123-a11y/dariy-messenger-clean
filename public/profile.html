@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Профиль</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #10002b, #240046, #3c096c);
+      color: white;
+      text-align: center;
+      padding-top: 80px;
+    }
+
+    .card {
+      background: rgba(0,0,0,0.6);
+      display: inline-block;
+      padding: 40px;
+      border-radius: 20px;
+      box-shadow: 0 0 30px #9d4edd;
+    }
+
+    h2 {
+      margin-bottom: 20px;
+    }
+
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 10px;
+      background: #9d4edd;
+      color: white;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    button:hover {
+      background: #7b2cbf;
+      box-shadow: 0 0 15px #c77dff;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2 id="name"></h2>
+    <button onclick="logout()">Выйти</button>
+  </div>
+
+  <script>
+    const username = localStorage.getItem("username");
+
+    if (!username) {
+      location.href = "login.html";
+    }
+
+    document.getElementById("name").innerText = "Пользователь: " + username;
+
+    function logout() {
+      localStorage.removeItem("username");
+      location.href = "login.html";
+    }
+  </script>
+</body>
+</html>
