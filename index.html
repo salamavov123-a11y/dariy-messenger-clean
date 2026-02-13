@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dariy Messenger</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+<div class="header">💜 Dariy Messenger</div>
+
+<div style="padding:10px">
+
+    <button onclick="location.href='profile.html'">Профиль</button>
+
+    <br><br>
+
+    <input id="search" placeholder="Поиск пользователей..." style="width:100%">
+    <div id="results"></div>
+
+    <br>
+    <button onclick="createGroup()">Создать группу</button>
+
+    <hr>
+
+    <div id="chatList"></div>
+
+</div>
+
+<script>
+    const SERVER = "https://dariy-messenger-clean.onrender.com";
+
+    if (!localStorage.username) location.href = "login.html";
+    const user = localStorage.username;
+
+    let selected = [];
+
+    /* ===== Поиск ===== */
+    search.oninput = async () => {
+      const q = search.value.trim();
+      if (!q) return results.innerHTML = "";
+
+      const res = await fetch(SERVER + "/users/" + q);
+      const users = await res.json();
+
+      results.innerHTML = "";
+
+      users.forEach(u => {
+        if (u.username === user) return;
+
+        const div = document.createElement("div");
+        div.className = "chat-item";
+        div.innerText = u.username;
+
+        div.onclick = () => {
+          if (!selected.includes(u.username)) {
+            selected.push(u.username);
+            div.style.border = "1px solid #9b5cff";
+          }
+        };
+
+        results.appendChild(div);
+      });
+    };
+
+    /* ===== Создание группы ===== */
+    async function createGroup() {
+      if (!selected.length) return alert("Выбери пользователей");
+
+      const name = prompt("Название группы:");
+
+      const res = await fetch(SERVER + "/create-chat", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          users: [user, ...selected],
+          name
+        })
+      });
+
+      const chat = await res.json();
+      location.href = "chat.html?chatId=" + chat._id;
+    }
+
+    /* ===== Загрузка чатов ===== */
+    async function loadChats() {
+      const res = await fetch(SERVER + "/chats/" + user);
+      const chats = await res.json();
+
+      chatList.innerHTML = "";
+
+      chats.forEach(chat => {
+        const div = document.createElement("div");
+        div.className = "chat-item";
+        div.innerHTML = `<b>${chat.name}</b><br><small>${chat.lastMessage || ""}</small>`;
+        div.onclick = () => location.href = "chat.html?chatId=" + chat._id;
+        chatList.appendChild(div);
+      });
+    }
+
+    loadChats();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile</title>
+</head>
+<body style="background:black;color:white;text-align:center">
+
+<h2>Профиль</h2>
+
+<img id="avatar" width="120" height="120" style="border-radius:50%"><br><br>
+
+<input type="file" id="file"><br><br>
+<button onclick="upload()">Загрузить аватар</button>
+
+<script>
+    const SERVER = "https://dariy-messenger-clean.onrender.com";
+    const username = localStorage.username;
+
+    async function load() {
+      const res = await fetch(SERVER + "/profile/" + username);
+      const data = await res.json();
+
+      if (data.avatar)
+        avatar.src = SERVER + data.avatar;
+    }
+
+    async function upload() {
+      const form = new FormData();
+      form.append("avatar", file.files[0]);
+      form.append("username", username);
+
+      const res = await fetch(SERVER + "/upload-avatar", {
+        method: "POST",
+        body: form
+      });
+
+      const data = await res.json();
+      avatar.src = SERVER + data.avatar;
+    }
+
+    load();
+</script>
+</body>
+</html>
