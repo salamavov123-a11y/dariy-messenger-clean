@@ -1,0 +1,160 @@
+/* ===== БАЗА ===== */
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #0b0b0f;
+  color: #fff;
+  overflow: hidden;
+}
+
+/* плавный скролл */
+* {
+  scroll-behavior: smooth;
+}
+
+/* ===== Header ===== */
+.header {
+  background: linear-gradient(90deg, #6a00ff, #9b5cff);
+  padding: 16px;
+  font-size: 20px;
+  text-align: center;
+  font-weight: bold;
+  box-shadow: 0 0 20px #7b2cff;
+  animation: fadeDown 0.4s ease;
+}
+
+/* ===== Buttons ===== */
+button {
+  background: #6a00ff;
+  border: none;
+  color: white;
+  padding: 10px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+/* hover анимация */
+button:hover {
+  background: #8c3bff;
+  box-shadow: 0 0 12px #8c3bff;
+  transform: translateY(-1px) scale(1.03);
+}
+
+/* нажатие */
+button:active {
+  transform: scale(0.96);
+}
+
+/* ===== Inputs ===== */
+input {
+  background: #111;
+  border: 1px solid #333;
+  color: white;
+  padding: 10px;
+  border-radius: 12px;
+  outline: none;
+  transition: 0.25s;
+}
+
+/* glow при фокусе */
+input:focus {
+  border-color: #8c3bff;
+  box-shadow: 0 0 10px #6a00ff66;
+}
+
+/* ===== Chat list ===== */
+.chat-item {
+  padding: 14px;
+  border-bottom: 1px solid #222;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  animation: fadeIn 0.35s ease;
+}
+
+.chat-item:hover {
+  background: #161622;
+  transform: translateX(4px);
+}
+
+/* ===== Messages ===== */
+.messages {
+  height: 60vh;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+/* пузырь сообщения */
+.msg {
+  margin: 8px 0;
+  padding: 10px 14px;
+  border-radius: 16px;
+  max-width: 70%;
+  opacity: 0;
+  transform: translateY(10px) scale(0.98);
+  animation: messageIn 0.25s ease forwards;
+}
+
+/* мои сообщения */
+.me {
+  background: #6a00ff;
+  margin-left: auto;
+  box-shadow: 0 0 12px #6a00ff;
+}
+
+/* чужие */
+.other {
+  background: #1a1a2b;
+}
+
+/* ===== Status ===== */
+.status-online {
+  color: #4cff4c;
+  animation: pulse 1.6s infinite;
+}
+
+.status-offline {
+  color: #aaa;
+  font-size: 12px;
+}
+
+/* ===== АНИМАЦИИ ===== */
+
+/* появление сверху */
+@keyframes fadeDown {
+  from {
+    opacity: 0;
+    transform: translateY(-15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* общее появление */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* появление сообщения */
+@keyframes messageIn {
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* мягкое пульсирование "в сети" */
+@keyframes pulse {
+  0% { text-shadow: 0 0 0px #4cff4c; }
+  50% { text-shadow: 0 0 10px #4cff4c; }
+  100% { text-shadow: 0 0 0px #4cff4c; }
+}

@@ -1,61 +1,162 @@
+require("dotenv").config();
+
 const express = require("express");
-const bodyParser = require("body-parser");
+const http = require("http");
+const { Server } = require("socket.io");
+const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
 const path = require("path");
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
+
+/* ================= НАСТРОЙКИ ================= */
+
 const PORT = process.env.PORT || 3000;
 
-/* ===== Хранилище пользователей (временно в памяти) ===== */
-let users = [];
-
-/* ===== Middleware ===== */
-app.use(bodyParser.json());
+app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-/* ===== Главная страница ===== */
+/* ================= MONGODB ================= */
+
+mongoose
+  .connect(process.env.MONGO_URL)
+  .then(() => console.log("✅ MongoDB подключена"))
+  .catch(err => console.log("❌ Ошибка MongoDB:", err));
+
+/* ================= МОДЕЛИ ================= */
+
+const User = mongoose.model(
+  "User",
+  new mongoose.Schema({
+    username: { type: String, unique: true },
+    password: String,
+    avatar: String,
+    createdAt: { type: Date, default: Date.now }
+  })
+);
+
+const Message = mongoose.model(
+  "Message",
+  new mongoose.Schema({
+    from: String,
+    to: String,
+    text: String,
+    time: { type: Date, default: Date.now }
+  })
+);
+
+/* ================= ГЛАВНАЯ ================= */
+
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "login.html"));
 });
 
-/* ===== Регистрация ===== */
-app.post("/register", (req, res) => {
-  const { username, password } = req.body;
+/* ================= РЕГИСТРАЦИЯ ================= */
 
-  if (!username || !password) {
-    return res.json({ success: false, message: "Заполни все поля" });
+app.post("/api/register", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password)
+      return res.json({ error: "Заполни все поля" });
+
+    const exist = await User.findOne({ username });
+    if (exist) return res.json({ error: "Пользователь уже существует" });
+
+    const hash = await bcrypt.hash(password, 10);
+
+    await User.create({
+      username,
+      password: hash
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.log(err);
+    res.json({ error: "Ошибка регистрации" });
   }
-
-  const exists = users.find(u => u.username === username);
-  if (exists) {
-    return res.json({ success: false, message: "Пользователь уже существует" });
-  }
-
-  users.push({ username, password });
-
-  res.json({ success: true });
 });
 
-/* ===== Вход ===== */
-app.post("/login", (req, res) => {
-  const { username, password } = req.body;
+/* ================= ВХОД ================= */
 
-  const user = users.find(
-    u => u.username === username && u.password === password
-  );
+app.post("/api/login", async (req, res) => {
+  try {
+    const { username, password } = req.body;
 
-  if (!user) {
-    return res.json({ success: false });
+    const user = await User.findOne({ username });
+    if (!user) return res.json({ error: "Пользователь не найден" });
+
+    const ok = await bcrypt.compare(password, user.password);
+    if (!ok) return res.json({ error: "Неверный пароль" });
+
+    res.json({ ok: true, username });
+  } catch (err) {
+    console.log(err);
+    res.json({ error: "Ошибка входа" });
   }
-
-  res.json({ success: true });
 });
 
-/* ===== Проверка сервера ===== */
+/* ================= СПИСОК ПОЛЬЗОВАТЕЛЕЙ ================= */
+
+app.get("/api/users", async (req, res) => {
+  const users = await User.find({}, "username avatar");
+  res.json(users);
+});
+
+/* ================= ПОЛУЧЕНИЕ СООБЩЕНИЙ ================= */
+
+app.get("/api/messages/:a/:b", async (req, res) => {
+  const { a, b } = req.params;
+
+  const msgs = await Message.find({
+    $or: [
+      { from: a, to: b },
+      { from: b, to: a }
+    ]
+  }).sort({ time: 1 });
+
+  res.json(msgs);
+});
+
+/* ================= SOCKET.IO ЧАТ ================= */
+
+io.on("connection", socket => {
+  console.log("🔌 Пользователь подключился");
+
+  socket.on("join", username => {
+    socket.username = username;
+    console.log("👤 Вошёл:", username);
+  });
+
+  socket.on("sendMessage", async data => {
+    try {
+      const msg = await Message.create({
+        from: data.from,
+        to: data.to,
+        text: data.text
+      });
+
+      io.emit("newMessage", msg);
+    } catch (err) {
+      console.log("Ошибка отправки:", err);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    console.log("❌ Пользователь отключился");
+  });
+});
+
+/* ================= ПРОВЕРКА СЕРВЕРА ================= */
+
 app.get("/ping", (req, res) => {
-  res.send("Server working");
+  res.send("Server working ✅");
 });
 
-/* ===== Запуск ===== */
-app.listen(PORT, () => {
-  console.log("Server running on port " + PORT);
+/* ================= ЗАПУСК ================= */
+
+server.listen(PORT, () => {
+  console.log("🚀 Сервер запущен на порту " + PORT);
 });
